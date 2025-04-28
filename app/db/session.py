@@ -3,7 +3,7 @@ from sqlalchemy.orm import sessionmaker
 from app.core.config import settings  # ✅ import the settings object
 
 # ✅ use settings.DATABASE_URL instead of os.getenv
-engine = create_engine("postgresql://postgres:Pinnacle%402025@db.fzjcejvmahoemdftwtuo.supabase.co:5432/postgres")
+engine = create_engine("postgresql://postgres:Pinnacle%402025@db.fzjcejvmahoemdftwtuo.supabase.co:5432/postgres?sslmode=require")
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
