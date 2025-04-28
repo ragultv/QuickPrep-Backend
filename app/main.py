@@ -22,11 +22,12 @@ def root():
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # For production, restrict this
+    allow_origins=["https://quickprep-two.vercel.app"],  # No trailing slash
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # ✅ Include all API routes
 app.include_router(users)           # ← this adds /users/register
