@@ -8,6 +8,7 @@ logger
 # Database
 sqlalchemy==2.0.28
 asyncpg==0.29.0
+docx
 
 pymupdf 
 pdf2image==1.16.3
