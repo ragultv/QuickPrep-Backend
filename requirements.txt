@@ -2,7 +2,9 @@
 fastapi==0.110.0
 uvicorn[standard]==0.29.0
 fastapi-cache>=0.1.0
-
+loguru==0.7.0
+logging==0.4.9.6
+logger
 # Database
 sqlalchemy==2.0.28
 asyncpg==0.29.0
