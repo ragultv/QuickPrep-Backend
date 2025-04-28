@@ -12,7 +12,7 @@ from app.db.session import get_db
 from app.api.deps import get_current_user
 from datetime import datetime
 import os
-import fitz  # PDF
+import fitz  # from PyMuPDF
 import docx  # Word
 
 UPLOAD_DIR = "upload"
