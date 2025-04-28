@@ -12,7 +12,6 @@ import re
 import uuid
 import json
 from app.schemas.prompt import PromptRequest  # Assuming you have a schema for the prompt request
-from fastapi_cache.decorator import cache
 from app.services.prompt_echancer import get_gemini_response  # Assuming you have a function to enhance prompts
 import logger
 
@@ -52,7 +51,7 @@ async def enhance_prompt(payload: PromptRequest, db: Session = Depends(get_db)):
             detail="Internal server error during prompt enhancement"
         )
 @router.post("/generate/")
-@cache(expire=3600)  # Cache for 1 hour
+
 async def generate_and_save_questions(payload: PromptRequest, db: Session = Depends(get_db)):
     try:
         # Extract exact number from prompt using regex
