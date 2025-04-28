@@ -6,6 +6,7 @@ uvicorn[standard]==0.29.0
 sqlalchemy==2.0.28
 asyncpg==0.29.0
 
+google-generativeai==0.3.0
 
 # Pydantic for data validation
 pydantic==2.6.4
