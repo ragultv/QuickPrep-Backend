@@ -15,7 +15,9 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Quiz Platform", version="1.0.0")
 
-
+@app.get("/")
+def root():
+    return {"message": "Server is running 🚀"}
 
 # CORS middleware
 app.add_middleware(
