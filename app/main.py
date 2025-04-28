@@ -22,7 +22,7 @@ def root():
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://quickprep-two.vercel.app"],  # No trailing slash
+    allow_origins=["https://quickprep-4svh.onrender.com"],  # No trailing slash
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
