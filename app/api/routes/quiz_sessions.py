@@ -1,13 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from uuid import UUID
-from backend.app.db.models import QuizSession, QuizSessionQuestion, Question
-from backend.app.db.session import get_db
-from backend.app.api.deps import get_current_user
-from backend.app.schemas.quiz_session import QuizSessionCreate, QuizSessionResponse
+from app.db.models import QuizSession, QuizSessionQuestion, Question
+from app.db.session import get_db
+from app.api.deps import get_current_user
+from app.schemas.quiz_session import QuizSessionCreate, QuizSessionResponse
 import uuid
 from datetime import datetime
-from backend.app.crud import crud_quiz
+from app.crud import crud_quiz
 
 router = APIRouter(prefix="/quiz-sessions", tags=["Quiz Sessions"])
 

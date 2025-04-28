@@ -3,7 +3,7 @@ import json
 import re
 import uuid
 from typing import List, Dict
-from backend.app.services.gemini_resume import get_gemini_response
+from app.services.gemini_resume import get_gemini_response
 
 
 def clean_markdown_json(raw_response: str) -> str:

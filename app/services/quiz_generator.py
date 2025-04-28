@@ -2,7 +2,7 @@
 import json
 import re
 from typing import List, Dict
-from backend.app.services.gemini import get_gemini_response
+from app.services.gemini import get_gemini_response
 
 def clean_markdown_json(raw_response: str) -> str:
     # Remove markdown code blocks and HTML comments

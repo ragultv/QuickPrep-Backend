@@ -2,11 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from fastapi.security import OAuth2PasswordRequestForm
 from datetime import timedelta
-from backend.app.db.session import get_db
-from backend.app.db.models import User
-from backend.app.core.security import verify_password, create_access_token, create_refresh_token
-from backend.app.schemas.token import Token
-from backend.app.api.deps import get_current_user
+from app.db.session import get_db
+from app.db.models import User
+from app.core.security import verify_password, create_access_token, create_refresh_token
+from app.schemas.token import Token
+from app.api.deps import get_current_user
 from datetime import datetime
 from pydantic import BaseModel
 
@@ -43,7 +43,7 @@ def refresh_token(
     token_data: RefreshTokenRequest,
     db: Session = Depends(get_db)
 ):
-    from backend.app.core.security import decode_token
+    from app.core.security import decode_token
 
     payload = decode_token(token_data.refresh_token)
     user_id: str = payload.get("sub")

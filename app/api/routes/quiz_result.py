@@ -4,10 +4,10 @@ from sqlalchemy.orm import Session
 from uuid import UUID
 from typing import List, Optional
 from pydantic import BaseModel
-from backend.app.db.session import get_db
-from backend.app.api.deps import get_current_user
-from backend.app.db.models import QuizSession, UserAnswer, Question
-from backend.app.schemas.quiz_result import QuizResultResponse, QuestionResult
+from app.db.session import get_db
+from app.api.deps import get_current_user
+from app.db.models import QuizSession, UserAnswer, Question
+from app.schemas.quiz_result import QuizResultResponse, QuestionResult
 
 router = APIRouter(prefix="/quiz-results", tags=["Quiz Results"])
 

@@ -1,10 +1,10 @@
 from sqlalchemy.orm import Session
 from fastapi import APIRouter, Depends, HTTPException       
 from uuid import UUID, uuid4
-from backend.app.db.models import resume
-from backend.app.db.session import get_db
-from backend.app.api.deps import get_current_user
-from backend.app.schemas.quiz_resume import ResumeUpload, ResumeResponse
+from app.db.models import resume
+from app.db.session import get_db
+from app.api.deps import get_current_user
+from app.schemas.quiz_resume import ResumeUpload, ResumeResponse
 from datetime import datetime
 
 def add_resume(db: Session, user_id: UUID, resume_data: ResumeUpload) -> ResumeResponse:

@@ -1,15 +1,15 @@
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
 from sqlalchemy.orm import Session
 from uuid import uuid4
-from backend.app.db.models import resume
-from backend.app.services.quiz_generator_resume import generate_quiz
-from backend.app.crud import crud_question
-from backend.app.db.models import Question
+from app.db.models import resume
+from app.services.quiz_generator_resume import generate_quiz
+from app.crud import crud_question
+from app.db.models import Question
 from uuid import UUID
-from backend.app.schemas.prompt import ResumePromptRequest
+from app.schemas.prompt import ResumePromptRequest
 from pydantic import BaseModel
-from backend.app.db.session import get_db
-from backend.app.api.deps import get_current_user
+from app.db.session import get_db
+from app.api.deps import get_current_user
 from datetime import datetime
 import os
 import fitz  # PDF

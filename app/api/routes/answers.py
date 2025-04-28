@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from uuid import UUID
-from backend.app.db.models import QuizSession, QuizSessionQuestion, Question, UserAnswer
-from backend.app.db.session import get_db
-from backend.app.api.deps import get_current_user
-from backend.app.schemas.user_answer import AnswerSubmission, AnswerResponse
+from app.db.models import QuizSession, QuizSessionQuestion, Question, UserAnswer
+from app.db.session import get_db
+from app.api.deps import get_current_user
+from app.schemas.user_answer import AnswerSubmission, AnswerResponse
 from datetime import datetime
 import uuid
 from typing import List

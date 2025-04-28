@@ -1,19 +1,19 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from backend.app.db.session import get_db
-from backend.app.services.quiz_generator import generate_large_quiz
-from backend.app.crud import crud_question
-from backend.app.db.models import Question
+from app.db.session import get_db
+from app.services.quiz_generator import generate_large_quiz
+from app.crud import crud_question
+from app.db.models import Question
 from pydantic import BaseModel
 from typing import List
-from backend.app.db.models import PromptResponse
-from backend.app.services.quiz_generator import clean_markdown_json  # <-- IMPORT CLEANER
+from app.db.models import PromptResponse
+from app.services.quiz_generator import clean_markdown_json  # <-- IMPORT CLEANER
 import re
 import uuid
 import json
-from backend.app.schemas.prompt import PromptRequest  # Assuming you have a schema for the prompt request
+from app.schemas.prompt import PromptRequest  # Assuming you have a schema for the prompt request
 from fastapi_cache.decorator import cache
-from backend.app.services.prompt_echancer import get_gemini_response  # Assuming you have a function to enhance prompts
+from app.services.prompt_echancer import get_gemini_response  # Assuming you have a function to enhance prompts
 import logger
 
 

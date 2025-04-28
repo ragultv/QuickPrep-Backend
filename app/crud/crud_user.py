@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 from sqlalchemy.future import select
-from backend.app.db.models import User
-from backend.app.schemas.user import UserCreate
+from app.db.models import User
+from app.schemas.user import UserCreate
 import uuid
 
 

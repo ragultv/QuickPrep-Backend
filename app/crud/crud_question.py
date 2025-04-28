@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from backend.app.db.models import Question
+from app.db.models import Question
 import uuid
 from datetime import datetime
 from typing import List

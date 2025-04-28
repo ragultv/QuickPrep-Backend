@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
-from backend.app.db.models import QuizSession, QuizSessionQuestion, UserAnswer
-from backend.app.schemas.quiz_session import QuizSessionCreate
-from backend.app.schemas.user_answer import UserAnswerCreate
+from app.schemas.quiz_session import QuizSessionCreate
+from app.db.models import QuizSession, QuizSessionQuestion, UserAnswer
+from app.schemas.user_answer import UserAnswerCreate
 import uuid
 from datetime import datetime
 from typing import List

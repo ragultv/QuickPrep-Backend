@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-from backend.app.db.models import User
-from backend.app.db.session import get_db
-from backend.app.core.security import get_password_hash, verify_password
-from backend.app.api.deps import get_current_user
-from backend.app.schemas.user import (
+from app.db.models import User
+from app.db.session import get_db
+from app.core.security import get_password_hash, verify_password
+from app.api.deps import get_current_user
+from app.schemas.user import (
     UserCreate, UserResponse,
     UserUpdate, PasswordChangeRequest
 )

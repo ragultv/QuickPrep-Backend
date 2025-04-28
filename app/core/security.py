@@ -4,7 +4,7 @@ from passlib.context import CryptContext
 from typing import Optional
 
 from fastapi import HTTPException, status
-from backend.app.core.config import settings
+from app.core.config import settings
 
 # Password hashing context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")

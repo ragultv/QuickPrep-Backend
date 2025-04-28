@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from backend.app.db.session import get_db
-from backend.app.api.deps import get_current_user
-from backend.app.db.models import User, QuizSession  # Assuming QuizSession is the model for quiz sessions
+from app.db.session import get_db
+from app.api.deps import get_current_user
+from app.db.models import User, QuizSession  # Assuming QuizSession is the model for quiz sessions
 from typing import List
 from datetime import timedelta
 from pydantic import BaseModel
-from backend.app.schemas.user import UserSessionResponse ,UserStatsResponse # Assuming you have a schema for user session response
+from app.schemas.user import UserSessionResponse ,UserStatsResponse # Assuming you have a schema for user session response
 
 
 

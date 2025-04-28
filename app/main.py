@@ -1,12 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from backend.app.db.session import get_db
-from backend.app.db.models import Base
-from backend.app.db.session import engine
+from app.db.session import get_db
+from app.db.models import Base
+from app.db.session import engine
 
-from backend.app.api.routes import auth, users, questions, quiz_sessions, answers,user_stats,quiz_result,quiz_resume
-from backend.app.api.routes import api_router
+from app.api.routes import auth, users, questions, quiz_sessions, answers,user_stats,quiz_result,quiz_resume
+from app.api.routes import api_router
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning)
 
