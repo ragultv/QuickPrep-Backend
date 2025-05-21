@@ -3,7 +3,7 @@ from sqlalchemy.orm import sessionmaker
 from app.core.config import settings  # ✅ import the settings object
 
 # ✅ use settings.DATABASE_URL instead of os.getenv (Pinnacle@2004)
-engine = create_engine("postgresql://postgres.esobonzucjpgqcrvliac:Pinnacle%402004@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres")
+engine = create_engine("postgresql://postgres.esobonzucjpgqcrvliac:Pinnacle%402004@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres")
 
 #postgresql://postgres.esobonzucjpgqcrvliac:[YOUR-PASSWORD]@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres
 
