@@ -18,7 +18,7 @@ class ResumeResponse(BaseModel):
     uploaded_at: datetime
 
     class Config:
-        orm_mode = True
+        form_attributes = True
 
 class ResumeUploadRequest:
     file: UploadFile

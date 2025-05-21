@@ -2,10 +2,7 @@ import google.generativeai as genai
 from app.core.config import settings
 
 # Configure API key
-genai.configure(api_key=settings.GOOGLE_API_KEY)
 
-# Load Gemini model
-model = genai.GenerativeModel('gemini-1.5-flash')
 
 generation_config = genai.GenerationConfig(
     temperature=0.2,
@@ -64,11 +61,24 @@ You are an intelligent AI specialized in generating technical MCQs for interview
 """
 
 
-# Core Gemini function
 def get_gemini_response(prompt: str, context: str = DEFAULT_CONTEXT) -> str:
     try:
+        genai.configure(api_key=settings.GOOGLE_API_KEY)  # dynamically set standard key
+        model = genai.GenerativeModel("gemini-1.5-flash")
         full_prompt = f"{context}\nUser Prompt: {prompt}"
-        response = model.generate_content(full_prompt,generation_config=generation_config)
+        response = model.generate_content(full_prompt, generation_config=generation_config)
         return response.text
     except Exception as e:
         return f"❌ Gemini Error: {str(e)}"
+
+
+# Function to get response using BULK Gemini API Key
+def get_bulk_gemini_response(prompt: str, context: str = DEFAULT_CONTEXT) -> str:
+    try:
+        genai.configure(api_key=settings.BULK_GOOGLE_API_KEY)  # dynamically set bulk key
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        full_prompt = f"{context}\nUser Prompt: {prompt}"
+        response = model.generate_content(full_prompt, generation_config=generation_config)
+        return response.text
+    except Exception as e:
+        return f"❌ Gemini Bulk Error: {str(e)}"

@@ -3,15 +3,18 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.services.quiz_generator import generate_large_quiz
 from app.crud import crud_question
-from app.db.models import Question
+from app.db.models import Question,QuizSession,User
 from pydantic import BaseModel
+from app.api.deps import get_current_user
 from typing import List
 from app.db.models import PromptResponse
 from app.services.quiz_generator import clean_markdown_json  # <-- IMPORT CLEANER
 import re
 import uuid
 import json
+from datetime import datetime, timedelta
 from app.schemas.prompt import PromptRequest  # Assuming you have a schema for the prompt request
+from fastapi_cache.decorator import cache
 from app.services.prompt_echancer import get_gemini_response  # Assuming you have a function to enhance prompts
 import logger
 
@@ -22,7 +25,7 @@ router = APIRouter()
 
 
 @router.post("/prompt_enhancer")
-async def enhance_prompt(payload: PromptRequest, db: Session = Depends(get_db)):
+def enhance_prompt(payload: PromptRequest, db: Session = Depends(get_db)):
     """
     Enhance user prompts for quiz generation using AI model
     """
@@ -51,8 +54,27 @@ async def enhance_prompt(payload: PromptRequest, db: Session = Depends(get_db)):
             detail="Internal server error during prompt enhancement"
         )
 @router.post("/generate/")
+@cache(expire=3600)  # Cache for 1 hour
+def generate_and_save_questions(payload: PromptRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    # user_id = user.id
 
-async def generate_and_save_questions(payload: PromptRequest, db: Session = Depends(get_db)):
+    # # Define today's start and end (UTC)
+    # now = datetime.utcnow()
+    # start_of_day = datetime(now.year, now.month, now.day)
+    # end_of_day = start_of_day + timedelta(days=1)
+
+    # # Count sessions created by the user today
+    # today_session_count = db.query(QuizSession).filter(
+    #     QuizSession.user_id == user_id,
+    #     QuizSession.started_at >= start_of_day,
+    #     QuizSession.started_at < end_of_day
+    # ).count()
+
+    # if today_session_count >= 5:
+    #     raise HTTPException(
+    #         status_code=429,
+    #         detail="❌ Daily session limit reached. You can create only 5 sessions per day. Try again tomorrow."
+    #     )
     try:
         # Extract exact number from prompt using regex
         match = re.search(r'\b(\d+)\b', payload.prompt)
@@ -150,3 +172,4 @@ def get_questions(question_ids: str, db: Session = Depends(get_db)):
         return transformed_questions
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid question IDs format")
+    

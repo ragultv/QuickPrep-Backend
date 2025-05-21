@@ -14,7 +14,7 @@ router = APIRouter(prefix="/users", tags=["Users"])
 
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-def register_user(user_in: UserCreate, db: Session = Depends(get_db)):
+async def register_user(user_in: UserCreate, db: Session = Depends(get_db)):
     if db.query(User).filter(User.email == user_in.email).first():
         raise HTTPException(status_code=400, detail="Email already registered")
     if db.query(User).filter(User.name == user_in.name).first():
@@ -33,7 +33,7 @@ def register_user(user_in: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.get("/me", response_model=UserResponse)
-def get_current_user_profile(current_user: User = Depends(get_current_user)):
+async def get_current_user_profile(current_user: User = Depends(get_current_user)):
     return current_user
 
 
@@ -65,3 +65,11 @@ def change_password(
     current_user.password_hash = get_password_hash(request.new_password)
     db.commit()
     return {"message": "Password updated successfully"}
+
+
+@router.get("/{user_id}", response_model=UserResponse)
+def get_user_by_id(user_id: str, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user

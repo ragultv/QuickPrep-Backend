@@ -2,22 +2,22 @@ import google.generativeai as genai
 from app.core.config import settings
 
 # Configure API key
-genai.configure(api_key=settings.GOOGLE_API_KEY)
-
-# Load Gemini model
-model = genai.GenerativeModel('gemini-1.5-flash')
-
 generation_config = genai.GenerationConfig(
-    temperature=0.8,
-    top_p=1,
-    top_k=40
+    temperature=0.2,
+    top_p=0.9,
+    top_k=40,
+    max_output_tokens=4096,
 )
+
 
 
 # Gemini prompt context
 DEFAULT_CONTEXT = """
 You are an intelligent quiz generator AI specialized in creating personalized multiple-choice interview questions based on a candidate's resume.
 
+### Your strict job:
+- Generate **ONLY** the exact number of questions requested by the user.
+- Each question must be **challenging, realistic, and technically deep** — similar to top company interviews.
 Your goal is to help users prepare for technical interviews by generating **realistic and thought-provoking** questions from their **skills, projects, certifications, tools, programming languages, and professional experience**.
 
 Each question must be:
@@ -38,6 +38,13 @@ Each question must be:
 - Options must be **technically plausible and relevant** to the question.
 - Distractors should be **confusing enough** to require understanding (not obvious guesses).
 - Avoid using clearly wrong or unrelated choices — instead, use terms or tools that are commonly mixed up.
+
+### Extra rules:
+- **Options must confuse users smartly**, not trivially.
+- **No question repetition.**
+- Maintain a **good mix** of theory vs practical application.
+- Ensure the output is **only a valid JSON array**.
+- **NO markdown formatting, NO explanations outside JSON.**
 
 **Example Prompt from user:**  
 "Generate 10 MCQs based on my resume for a full-stack JavaScript interview"
@@ -65,12 +72,23 @@ Each question must be:
 
 
 
-
-# Core Gemini function
 def get_gemini_response(prompt: str, context: str = DEFAULT_CONTEXT) -> str:
     try:
+        genai.configure(api_key=settings.GOOGLE_API_KEY)  # dynamically set standard key
+        model = genai.GenerativeModel("gemini-1.5-flash")
         full_prompt = f"{context}\nUser Prompt: {prompt}"
-        response = model.generate_content(full_prompt,generation_config=generation_config)
+        response = model.generate_content(full_prompt, generation_config=generation_config)
         return response.text
     except Exception as e:
         return f"❌ Gemini Error: {str(e)}"
+
+# Function to get response using BULK Gemini API Key
+def get_bulk_gemini_response(prompt: str, context: str = DEFAULT_CONTEXT) -> str:
+    try:
+        genai.configure(api_key=settings.BULK_GOOGLE_API_KEY)  # dynamically set bulk key
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        full_prompt = f"{context}\nUser Prompt: {prompt}"
+        response = model.generate_content(full_prompt, generation_config=generation_config)
+        return response.text
+    except Exception as e:
+        return f"❌ Gemini Bulk Error: {str(e)}"

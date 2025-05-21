@@ -15,19 +15,16 @@ Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Quiz Platform", version="1.0.0")
 
-@app.get("/")
-def root():
-    return {"message": "Server is running 🚀"}
+
 
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://quickprep-4svh.onrender.com"],  # No trailing slash
+    allow_origins=["*"],  # For production, restrict this
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 
 # ✅ Include all API routes
 app.include_router(users)           # ← this adds /users/register

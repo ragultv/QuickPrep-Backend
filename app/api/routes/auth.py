@@ -9,6 +9,7 @@ from app.schemas.token import Token
 from app.api.deps import get_current_user
 from datetime import datetime
 from pydantic import BaseModel
+from app.core.security import decode_token
 
 class RefreshTokenRequest(BaseModel):
     refresh_token: str
@@ -43,8 +44,7 @@ def refresh_token(
     token_data: RefreshTokenRequest,
     db: Session = Depends(get_db)
 ):
-    from app.core.security import decode_token
-
+    
     payload = decode_token(token_data.refresh_token)
     user_id: str = payload.get("sub")
     if not user_id:
@@ -69,5 +69,5 @@ def read_users_me(current_user: User = Depends(get_current_user)):
         "id": current_user.id,
         "name": current_user.name,
         "email": current_user.email,
-        "created_at": current_user.created_at
+        "created_at": current_user.create
     }

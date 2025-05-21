@@ -12,12 +12,17 @@ class Settings:
     ENV: str = os.getenv("ENV", "development")
     DEBUG: bool = ENV == "development"
     GOOGLE_API_KEY: str = os.getenv("GOOGLE_API_KEY", "your-default-or-dev-key")
+    BULK_GOOGLE_API_KEY: str = os.getenv("BULK_GOOGLE_API_KEY", "your-default-or-dev-key")
     DATABASE_URL: str = os.getenv("DATABASE_URL")
     JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "supersecretkey")
     SECRET_KEY: str = os.getenv("SECRET_KEY")  # Removed trailing comma
     ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
     REFRESH_TOKEN_EXPIRE_DAYS: int = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
     JWT_ALGORITHM: str = "HS256"
+    OPENROUTER_API_KEY:str = os.getenv("OPEN_ROUTER_KEY")
+    GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID")
+    GOOGLE_CLIENT_SECRET: str = os.getenv("GOOGLE_CLIENT_SECRET")
+    FRONTEND_URL: str = os.getenv("FRONTEND_URL")  
     # Remove duplicate ACCESS_TOKEN_EXPIRE_MINUTES if needed
 
 settings = Settings()

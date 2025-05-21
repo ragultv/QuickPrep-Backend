@@ -1,8 +1,8 @@
-
 import json
 import re
 from typing import List, Dict
-from app.services.gemini import get_gemini_response
+from app.services.gemini import get_gemini_response,get_bulk_gemini_response
+from app.services.open_router import get_openrouter_response
 
 def clean_markdown_json(raw_response: str) -> str:
     # Remove markdown code blocks and HTML comments
@@ -36,26 +36,28 @@ def clean_markdown_json(raw_response: str) -> str:
                         continue
     raise ValueError("❌ Could not extract valid JSON array")
 
-def generate_single_batch(prompt: str) -> List[Dict]:
+
+def generate_single_batch(prompt: str, total_questions: int) -> List[Dict]:
     """
-    Generate and validate a batch of questions from Gemini response
-    Returns list of properly formatted question dictionaries
+    Generate and validate a batch of questions from Gemini response.
+    Returns list of properly formatted question dictionaries.
     """
     try:
-        # Get raw response from Gemini
-        raw_response = get_gemini_response(prompt)
+        # Choose the appropriate Gemini call based on total_questions
+        if total_questions <= 50:
+            raw_response = get_gemini_response(prompt)
+        else:
+            raw_response = get_bulk_gemini_response(prompt)
+
         if not raw_response.strip():
             raise ValueError("Empty response from Gemini")
 
-        # Clean and parse JSON
+        # Clean and parse JSON (for both cases)
         cleaned_json = clean_markdown_json(raw_response)
         try:
             questions_data = json.loads(cleaned_json)
         except json.JSONDecodeError as e:
-            # Log problematic response for debugging
-            # print(f"💣 JSON Decode Error: {str(e)}")
-            # print(f"💣 Raw Response: {raw_response}")
-            # print(f"💣 Cleaned JSON: {cleaned_json}")
+            print("Raw AI response:", cleaned_json)  # Log the cleaned response for debugging
             raise ValueError(f"Invalid JSON format: {str(e)}")
 
         # Validate root structure
@@ -63,21 +65,16 @@ def generate_single_batch(prompt: str) -> List[Dict]:
             raise ValueError("Top-level structure must be a JSON array")
 
         validated_questions = []
-        
+
         # Process each question item
         for idx, item in enumerate(questions_data):
-            # Validate required fields
             if not all(key in item for key in ("question", "options", "answer")):
-                # print(f"⚠️ Skipping invalid item at index {idx}: Missing required fields")
-                continue
-                
-            # Validate options structure
-            options = item.get("options", {})
-            if not all(k in options for k in ("A", "B", "C", "D")):
-                # print(f"⚠️ Skipping invalid options at index {idx}: {options}")
                 continue
 
-            # Transform to internal format
+            options = item.get("options", {})
+            if not all(k in options for k in ("A", "B", "C", "D")):
+                continue
+
             try:
                 transformed = {
                     "question_text": item["question"],
@@ -91,29 +88,25 @@ def generate_single_batch(prompt: str) -> List[Dict]:
                     "difficulty": item.get("difficulty", "medium").lower(),
                     "company": item.get("company", "Unknown")
                 }
-                
-                # Validate answer value
+
                 if transformed["correct_answer"] not in ("A", "B", "C", "D"):
-                    # print(f"⚠️ Invalid answer '{item['answer']}' at index {idx}")
                     continue
-                    
+
                 validated_questions.append(transformed)
-                
-            except KeyError as ke:
-                # print(f"⚠️ Key error processing item {idx}: {str(ke)}")
+
+            except KeyError:
                 continue
 
-        # Final validation
         if not validated_questions:
             raise ValueError("No valid questions found in batch response")
-            
+
         return validated_questions
 
     except Exception as e:
-        # Wrap all errors in consistent format
         error_msg = f"Batch generation failed: {str(e)}"
         print(f"🔥 {error_msg}")
         raise ValueError(error_msg)
+
     
 
 def generate_large_quiz(
@@ -128,7 +121,8 @@ def generate_large_quiz(
     while len(full) < total_questions:
         remaining = total_questions - len(full)
         current_batch_size = min(batch_size, remaining)
-        
+
+        total_questions=total_questions
         batch_prompt = (
             f"{prompt}\n\n"
             f"CRITICAL: Generate EXACTLY {current_batch_size} UNIQUE questions. "
@@ -137,17 +131,17 @@ def generate_large_quiz(
             f"Current progress: {len(full)}/{total_questions} generated."
         )
         
+        unique_batch = []
         try:
-            batch = generate_single_batch(batch_prompt)
+            batch =generate_single_batch(batch_prompt,total_questions)
             
             # Filter out any questions that duplicate previously generated ones
-            unique_batch = []
             for question in batch:
                 if question["question_text"] not in all_question_texts:
                     unique_batch.append(question)
                     all_question_texts.add(question["question_text"])
                 else:
-                    print(f"Found duplicate question: '{question['question_text'][:50]}...'")
+                    print(f"Found duplicate question")
             
             # If batch is incomplete after filtering, generate missing questions
             if len(unique_batch) < current_batch_size:
@@ -164,7 +158,7 @@ def generate_large_quiz(
             if len(unique_batch) > 0:
                 full.extend(unique_batch)
                 print(f"Added partial batch of {len(unique_batch)} questions")
-            
+        
     return full[:total_questions]
 
 def fill_missing_questions(
@@ -189,12 +183,12 @@ def fill_missing_questions(
         List[Dict]: The completed batch with additional questions
     """
     # Calculate exactly how many questions are missing
-    missing_count = target_size - len(current_batch)
+    total_questions = target_size - len(current_batch)
     
-    if missing_count <= 0:
+    if total_questions <= 0:
         return current_batch  # Batch is already complete
     
-    print(f"Attempting to generate exactly {missing_count} missing unique questions...")
+    print(f"Attempting to generate exactly {total_questions} missing unique questions...")
     
     combined_batch = current_batch.copy()
     
@@ -204,13 +198,13 @@ def fill_missing_questions(
             # Create a prompt specifically for the missing questions
             fill_prompt = (
                 f"{prompt}\n\n"
-                f"CRITICAL: Generate EXACTLY {missing_count} unique questions. "
+                f"CRITICAL: Generate EXACTLY {total_questions} unique questions. "
                 f"I already have {len(current_batch)} questions in this batch. "
-                f"I need EXACTLY {missing_count} MORE UNIQUE questions to complete the batch."
+                f"I need EXACTLY {total_questions} MORE UNIQUE questions to complete the batch."
             )
             
             # Generate just the missing questions
-            additional_questions = generate_single_batch(fill_prompt)
+            additional_questions =generate_single_batch(fill_prompt,total_questions)
             
             # Filter out any duplicates against ALL previously generated questions
             added_count = 0

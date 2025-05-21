@@ -2,12 +2,16 @@
 fastapi==0.110.0
 uvicorn[standard]==0.29.0
 fastapi-cache>=0.1.0
+fastapi_cache==0.1.0
+fastapi-cache2
+
 loguru==0.7.0
 logging==0.4.9.6
 logger
 # Database
 sqlalchemy==2.0.28
 asyncpg==0.29.0
+psycopg2==2.9.10
 docx
 python-docx
 
@@ -16,6 +20,7 @@ pdf2image==1.16.3
 
 
 google-generativeai==0.3.0
+openai==0.27.0
 
 # Pydantic for data validation
 pydantic==2.6.4
