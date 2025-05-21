@@ -2,7 +2,7 @@ import json
 import re
 from typing import List, Dict
 from app.services.gemini import get_gemini_response,get_bulk_gemini_response
-from app.services.open_router import get_openrouter_response
+
 
 def clean_markdown_json(raw_response: str) -> str:
     # Remove markdown code blocks and HTML comments
