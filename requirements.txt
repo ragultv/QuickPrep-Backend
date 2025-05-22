@@ -5,8 +5,7 @@ fastapi-cache>=0.1.0
 fastapi_cache==0.1.0
 fastapi-cache2
 
-loguru==0.7.0
-logging==0.4.9.6
+
 
 # Database
 sqlalchemy==2.0.28
