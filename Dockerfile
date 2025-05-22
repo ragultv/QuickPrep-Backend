@@ -15,4 +15,5 @@ COPY . .
 EXPOSE 8000
 
 # Start the app (edit this as needed for your framework)
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
+
