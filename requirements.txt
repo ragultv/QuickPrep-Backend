@@ -10,7 +10,8 @@ fastapi-cache2
 # Database
 sqlalchemy==2.0.28
 asyncpg==0.29.0
-psycopg2==2.9.10
+psycopg2-binary==2.9.10
+
 
 # Document Parsing
 docx
