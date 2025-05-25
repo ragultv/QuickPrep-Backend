@@ -37,3 +37,6 @@ app.include_router(quiz_result.router)
 app.include_router(quiz_resume.router)
 #app.include_router(save_prompt_response.router)
 app.include_router(api_router)
+@app.get("/")
+def root():
+    return {"message": "Welcome to the Quiz Platform API"}

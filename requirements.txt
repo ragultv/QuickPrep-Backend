@@ -5,13 +5,13 @@ fastapi-cache>=0.1.0
 fastapi_cache==0.1.0
 fastapi-cache2
 
-loguru==0.7.0
-logging==0.4.9.6
+
 
 # Database
 sqlalchemy==2.0.28
 asyncpg==0.29.0
-psycopg2==2.9.10
+psycopg2-binary==2.9.10
+
 
 # Document Parsing
 docx
