@@ -24,6 +24,10 @@ class Settings:
     GOOGLE_CLIENT_SECRET: str = os.getenv("GOOGLE_CLIENT_SECRET")
     FRONTEND_URL: str = os.getenv("FRONTEND_URL")  
     # Remove duplicate ACCESS_TOKEN_EXPIRE_MINUTES if needed
+    EMAIL_SERVER: str = os.getenv("EMAIL_SERVER", "smtp.example.com")
+    EMAIL_PORT: int = int(os.getenv("EMAIL_PORT", "587"))
+    EMAIL_ADDRESS: str = os.getenv("EMAIL_ADDRESS")
+    EMAIL_PASSWORD: str = os.getenv("EMAIL_PASSWORD")
 
 settings = Settings()
 

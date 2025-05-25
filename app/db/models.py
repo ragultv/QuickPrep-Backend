@@ -19,6 +19,7 @@ class User(Base):
     email = Column(String(150), unique=True, nullable=False)
     password_hash = Column(Text, nullable=False)
     created_at = Column(DateTime(timezone=True), default=utcnow)
+    is_verified = Column(Boolean, default=False, nullable=False)
 
     quiz_sessions = relationship("QuizSession", back_populates="user")
 

@@ -39,3 +39,13 @@ class UserSessionResponse(BaseModel):
 class UserStatsResponse(BaseModel):
     total_quiz: int
     best_score: float
+
+class UsernameAvailability(BaseModel):
+    available: bool
+
+class EmailVerificationRequest(BaseModel):
+    email: EmailStr
+    otp: str
+
+class EmailSchema(BaseModel):
+    email: str
