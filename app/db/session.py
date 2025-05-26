@@ -1,24 +1,54 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from app.core.config import settings  # ✅ import the settings object
+from app.core.config import settings
 from sqlalchemy.pool import QueuePool
+from sqlalchemy.exc import OperationalError
+import time
+from contextlib import contextmanager
 
 # ✅ use settings.DATABASE_URL instead of os.getenv (Pinnacle@2004)
 engine = create_engine("postgresql://postgres.esobonzucjpgqcrvliac:Pinnacle%402004@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres",
     poolclass=QueuePool,
-    pool_size=20,  # Maximum number of connections to keep
-    max_overflow=10,  # Maximum number of connections that can be created beyond pool_size
-    pool_timeout=30,  # Seconds to wait before giving up on getting a connection from the pool
-    pool_recycle=1800,  # Recycle connections after 30 minutes
-    pool_pre_ping=True )
-
-#postgresql://postgres.esobonzucjpgqcrvliac:[YOUR-PASSWORD]@aws-0-ap-southeast-1.pooler.supabase.com:6543/postgres
+    pool_size=5,  # Reduced pool size to be more conservative
+    max_overflow=5,  # Reduced overflow to be more conservative
+    pool_timeout=60,  # Increased timeout to 60 seconds
+    pool_recycle=300,  # Recycle connections every 5 minutes
+    pool_pre_ping=True,  # Enable connection health checks
+    connect_args={
+        "connect_timeout": 10,  # Connection timeout in seconds
+        "keepalives": 1,  # Enable keepalive
+        "keepalives_idle": 30,  # Idle time before sending keepalive
+        "keepalives_interval": 10,  # Time between keepalives
+        "keepalives_count": 5  # Number of keepalives before giving up
+    }
+)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+@contextmanager
+def get_db_with_retry(max_retries=3, retry_delay=1):
+    """Get database session with retry logic"""
+    retries = 0
+    while retries < max_retries:
+        try:
+            db = SessionLocal()
+            try:
+                yield db
+                db.commit()
+            except Exception as e:
+                db.rollback()
+                raise e
+            finally:
+                db.close()
+            break
+        except OperationalError as e:
+            retries += 1
+            if retries == max_retries:
+                raise e
+            time.sleep(retry_delay)
+            continue
+
 def get_db():
-    db = SessionLocal()
-    try:
+    """FastAPI dependency for database sessions"""
+    with get_db_with_retry() as db:
         yield db
-    finally:
-        db.close()
