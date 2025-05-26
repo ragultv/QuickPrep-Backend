@@ -20,11 +20,12 @@ app = FastAPI(title="Quiz Platform", version="1.0.0")
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # For production, restrict this
+    allow_origins=["https://jovial-fenglisu-9a4cc0.netlify.app"],  # 👈 your frontend domain
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # ✅ Include all API routes
 app.include_router(users)           # ← this adds /users/register
