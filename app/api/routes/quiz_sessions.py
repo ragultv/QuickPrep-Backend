@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
 from uuid import UUID
-from app.db.models import QuizSession, QuizSessionQuestion, Question, HostedSessionParticipant, HostedSession, User, HostedSessionLeaderboard
+from app.db.models import QuizSession, QuizSessionQuestion, Question, HostedSessionParticipant, HostedSession, User, HostedSessionLeaderboard, HostedQuizSession, HostedQuizSessionQuestion, JoinedQuizSession, JoinedQuizSessionQuestion, JoinedUserAnswer
 from app.db.session import get_db
 from app.api.deps import get_current_user
 from app.schemas.quiz_session import (
@@ -13,7 +13,6 @@ from app.schemas.quiz_session import (
     HostedSessionWithQuizResponse,
     JoinHostedSessionResponse
 )
-from app.db.models import HostedQuizSession, HostedQuizSessionQuestion
 import uuid
 from datetime import datetime
 from app.crud import crud_quiz
@@ -160,34 +159,22 @@ async def join_hosted_session(
     if not template_hosted_quiz_session:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Template quiz for hosted session not found")
 
+    # Initialize variables
+    participant_record = None
+    existing_quiz_session = None
+    participant_specific_quiz_session_id = None
+
     # Check if participant already exists for this user and hosted session
     participant_record = db.query(HostedSessionParticipant).filter(
         HostedSessionParticipant.hosted_session_id == hosted_session_id,
         HostedSessionParticipant.user_id == current_user.id
     ).first()
 
-    participant_specific_quiz_session_id: Optional[UUID] = None
-
     if participant_record:
-        # User has already joined. Try to find their existing QuizSession.
-        # This assumes the QuizSession was created with matching details from template_hosted_quiz_session
-        existing_quiz_session = db.query(QuizSession).filter(
-            QuizSession.user_id == current_user.id,
-            QuizSession.prompt == template_hosted_quiz_session.prompt,
-            QuizSession.topic == template_hosted_quiz_session.topic,
-            QuizSession.difficulty == template_hosted_quiz_session.difficulty,
-            QuizSession.company == template_hosted_quiz_session.company,
-            QuizSession.num_questions == template_hosted_quiz_session.num_questions
-        ).order_by(QuizSession.created_at.desc()).first()
-        if existing_quiz_session:
-            participant_specific_quiz_session_id = existing_quiz_session.id
-            print(f"User {current_user.id} already joined. Found their QuizSession: {participant_specific_quiz_session_id}")
-        else:
-            # This case is unlikely if join logic is correct, but handle it.
-            # It means they are a participant but their QuizSession is missing or unmatchable.
-            # We will proceed to create one below if not found.
-            print(f"User {current_user.id} already joined but QuizSession not found by content match. Will attempt to create.")
-            participant_record = None # Force creation path if their specific session is not found
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User already joined the session"
+        )
 
     if not participant_record:
         if hosted_session.current_participants >= hosted_session.total_spots:
@@ -201,14 +188,13 @@ async def join_hosted_session(
         )
         db.add(participant_record)
         hosted_session.current_participants += 1
-        db.flush() # Flush to get participant_record.id if needed for leaderboard, and update counts
+        db.flush()
         print(f"New participant {current_user.id} added to hosted_session {hosted_session_id}")
 
-    # Create or ensure QuizSession for the participant using template_hosted_quiz_session details
-    # This part runs if participant_specific_quiz_session_id was not found above (either new join or missing session for existing participant)
+    # Create or ensure JoinedQuizSession for the participant using template_hosted_quiz_session details
     if not participant_specific_quiz_session_id:
-        new_participant_quiz_session = QuizSession(
-            id=uuid.uuid4(), # Generate new UUID for this participant's quiz session
+        new_participant_quiz_session = JoinedQuizSession(
+            id=uuid.uuid4(),
             user_id=current_user.id,
             prompt=template_hosted_quiz_session.prompt,
             topic=template_hosted_quiz_session.topic,
@@ -216,51 +202,68 @@ async def join_hosted_session(
             company=template_hosted_quiz_session.company,
             num_questions=template_hosted_quiz_session.num_questions,
             total_duration=template_hosted_quiz_session.total_duration,
-            # started_at, submitted_at, score are default/None
         )
         db.add(new_participant_quiz_session)
-        db.flush() # Ensure new_participant_quiz_session.id is available
+        db.flush()
         participant_specific_quiz_session_id = new_participant_quiz_session.id
-        print(f"Created new QuizSession {participant_specific_quiz_session_id} for user {current_user.id} for hosted_session {hosted_session_id}")
+        print(f"Created new JoinedQuizSession {participant_specific_quiz_session_id} for user {current_user.id} for hosted_session {hosted_session_id}")
 
-        # Link questions from HostedQuizSessionQuestion to the new QuizSessionQuestion
+        # Link questions from HostedQuizSessionQuestion to the new JoinedQuizSessionQuestion
         template_questions = db.query(HostedQuizSessionQuestion).filter(
             HostedQuizSessionQuestion.hosted_session_id == template_hosted_quiz_session.id
         ).order_by(HostedQuizSessionQuestion.question_order).all()
 
         for hq_question in template_questions:
-            new_qs_question = QuizSessionQuestion(
-                quiz_session_id=participant_specific_quiz_session_id,
+            new_qs_question = JoinedQuizSessionQuestion(
+                joined_session_id=participant_specific_quiz_session_id,
                 question_id=hq_question.question_id,
                 question_order=hq_question.question_order
             )
             db.add(new_qs_question)
     
     db.commit()
-    # db.refresh(hosted_session) # Refresh if needed for response, but we are constructing it manually
-    # db.refresh(participant_record) # If its fields are directly used in response
-    # If new_participant_quiz_session was created, db.refresh(new_participant_quiz_session)
     
     return JoinHostedSessionResponse(
         message="Successfully joined session" if not participant_record or not existing_quiz_session else "Already part of session, details retrieved",
         participant_quiz_session_id=participant_specific_quiz_session_id,
         hosted_session_id=hosted_session_id,
-        is_live=bool(hosted_session.started_at) # Ensure is_live reflects current status
+        is_live=bool(hosted_session.started_at)
     )
 
 @router.get("/{session_id}", response_model=QuizSessionResponse)
 async def get_quiz_session(session_id: UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    # First check if it's a regular quiz session
     session = db.query(QuizSession).filter(
         QuizSession.id == session_id,
         QuizSession.user_id == current_user.id
     ).first()
     
     if not session:
-        # This is a critical check. If a user is trying to access a QuizSession directly by its ID,
-        # they MUST be the owner. Being a participant in a hosted session that *used* to link to this
-        # QuizSession ID (if it was a template) does not grant direct access here.
-        # The /hosted/{hosted_session_id} endpoint handles participant context for hosted sessions.
-        raise HTTPException(status_code=404, detail="Quiz session not found or you are not the owner")
+        # If not found in regular quiz sessions, check joined quiz sessions
+        joined_session = db.query(JoinedQuizSession).filter(
+            JoinedQuizSession.id == session_id,
+            JoinedQuizSession.user_id == current_user.id
+        ).first()
+        
+        if not joined_session:
+            raise HTTPException(status_code=404, detail="Quiz session not found or you are not the owner")
+        
+        # Convert JoinedQuizSession to QuizSessionResponse format
+        return QuizSessionResponse(
+            id=joined_session.id,
+            user_id=joined_session.user_id,
+            prompt=joined_session.prompt,
+            topic=joined_session.topic,
+            difficulty=joined_session.difficulty,
+            company=joined_session.company,
+            num_questions=joined_session.num_questions,
+            score=joined_session.score,
+            created_at=joined_session.created_at,
+            started_at=joined_session.started_at,
+            submitted_at=joined_session.submitted_at,
+            total_duration=joined_session.total_duration
+        )
+    
     return session
 
 @router.get("/{session_id}/details")
@@ -320,45 +323,49 @@ async def start_quiz_session(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    session = db.query(QuizSession).filter(QuizSession.id == session_id, QuizSession.user_id == current_user.id).first()
+    # First check if it's a regular quiz session
+    session = db.query(QuizSession).filter(
+        QuizSession.id == session_id,
+        QuizSession.user_id == current_user.id
+    ).first()
+    
     if not session:
-        raise HTTPException(status_code=404, detail="Quiz session not found or not owned by user")
+        # If not found in regular quiz sessions, check joined quiz sessions
+        session = db.query(JoinedQuizSession).filter(
+            JoinedQuizSession.id == session_id,
+            JoinedQuizSession.user_id == current_user.id
+        ).first()
+        
+        if not session:
+            raise HTTPException(status_code=404, detail="Quiz session not found or not owned by user")
+        
+        if session.submitted_at:
+            raise HTTPException(status_code=400, detail="Session already submitted")
+        
+        session.started_at = datetime.utcnow()
+        db.commit()
+        db.refresh(session)
+        
+        # Convert JoinedQuizSession to QuizSessionResponse format
+        return QuizSessionResponse(
+            id=session.id,
+            user_id=session.user_id,
+            prompt=session.prompt,
+            topic=session.topic,
+            difficulty=session.difficulty,
+            company=session.company,
+            num_questions=session.num_questions,
+            score=session.score,
+            created_at=session.created_at,
+            started_at=session.started_at,
+            submitted_at=session.submitted_at,
+            total_duration=session.total_duration
+        )
+    
     if session.submitted_at:
         raise HTTPException(status_code=400, detail="Session already submitted")
-    if session.started_at:
-        # Optionally, allow re-starting if not submitted, or raise error/return current state
-        # For now, let's assume starting an already started session is fine if not submitted.
-        # db.refresh(session) # Refresh to ensure latest state, though not strictly necessary if no changes before commit
-        # return session # Or just proceed to update leaderboard if logic requires
-        pass
-
+    
     session.started_at = datetime.utcnow()
-
-    # If this QuizSession is part of any HostedSession (as a participant's session),
-    # update the leaderboard entry.
-    # This requires a way to link QuizSession back to HostedSessionParticipant or HostedSession.
-    # Current model: HostedSession -> HostedQuizSession (template) -> QuizSession (participant's copy)
-    # We need to find if this QuizSession (session_id) was created for a participant of a HostedSession.
-    # This is complex without a direct link like `QuizSession.source_hosted_session_id`
-    # or `QuizSession.participant_record_id`.
-
-    # Let's assume for now the leaderboard entry is primarily managed when the HOST starts the HostedQuizSession,
-    # or if the frontend explicitly passes hosted_session_id when a participant starts.
-    # The current /start endpoint seems more for individual QuizSessions or host-initiated starts.
-
-    # If we want to update participant's leaderboard on THEIR QuizSession start:
-    # We'd need to find the HostedSessionParticipant record for this user and this QuizSession's content origin.
-    # Example (conceptual, needs proper linking in DB schema):
-    # participant_entry = db.query(HostedSessionParticipant).join(HostedSession).join(HostedQuizSession, HostedSession.quiz_session_id == HostedQuizSession.id)
-    #    .filter(HostedSessionParticipant.user_id == current_user.id)
-    #    .filter(HostedQuizSession.prompt == session.prompt) # matching content
-    #    .filter(HostedQuizSession.topic == session.topic)   # matching content
-    #    .first()
-    # if participant_entry:
-    #     leaderboard_entry = db.query(HostedSessionLeaderboard).filter(...).first()
-    #     if not leaderboard_entry: create new one with started_at
-    #     else: update started_at
-
     db.commit()
     db.refresh(session)
     return session

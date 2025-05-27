@@ -22,6 +22,8 @@ class User(Base):
     is_verified = Column(Boolean, default=False, nullable=False)
 
     quiz_sessions = relationship("QuizSession", back_populates="user")
+    joined_quiz_sessions = relationship("JoinedQuizSession", back_populates="user")
+
 
 
 class Question(Base):
@@ -173,3 +175,43 @@ class HostedSessionLeaderboard(Base):
 
     participant = relationship("HostedSessionParticipant", backref="leaderboard_entry")
     session = relationship("HostedSession", backref="leaderboard_entries")
+
+class JoinedQuizSessionQuestion(Base):
+    __tablename__ = "joined_quiz_session_questions"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    joined_session_id = Column(UUID(as_uuid=True), ForeignKey("joined_quiz_sessions.id"))
+    question_id = Column(UUID(as_uuid=True), ForeignKey("questions.id"))
+    question_order = Column(Integer)
+
+    joined_session = relationship("JoinedQuizSession", back_populates="questions")
+    question = relationship("Question")
+
+class JoinedUserAnswer(Base):
+    __tablename__ = "joined_user_answers"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    joined_session_id = Column(UUID(as_uuid=True), ForeignKey("joined_quiz_sessions.id"))
+    question_id = Column(UUID(as_uuid=True), ForeignKey("questions.id"))
+    selected_option = Column(CHAR(1), nullable=False)
+    is_correct = Column(Boolean, nullable=False)
+    answered_at = Column(DateTime(timezone=True), default=utcnow)
+
+    joined_session = relationship("JoinedQuizSession", back_populates="answers")
+    question = relationship("Question")
+
+class JoinedQuizSession(Base):
+    __tablename__ = "joined_quiz_sessions"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    prompt = Column(Text, nullable=False)
+    topic = Column(String(100))
+    difficulty = Column(String(100))
+    company = Column(String(100))
+    num_questions = Column(Integer, default=0)
+    score = Column(Integer, default=0)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    started_at = Column(DateTime(timezone=True), nullable=True, default=None)
+    submitted_at = Column(DateTime(timezone=True))
+    user = relationship("User", back_populates="joined_quiz_sessions")
+    questions = relationship("JoinedQuizSessionQuestion", back_populates="joined_session")
+    answers = relationship("JoinedUserAnswer", back_populates="joined_session")
+    total_duration = Column(Float, nullable=False)
