@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from uuid import UUID
-from app.db.models import QuizSession, QuizSessionQuestion, Question, UserAnswer, HostedSession, HostedSessionParticipant, HostedQuizSession, HostedQuizSessionQuestion, HostedSessionLeaderboard
+from app.db.models import QuizSession, QuizSessionQuestion, Question, UserAnswer, HostedSession, HostedSessionParticipant, HostedQuizSession, HostedQuizSessionQuestion, HostedSessionLeaderboard, JoinedQuizSession, JoinedUserAnswer
 from app.db.session import get_db
 from app.api.deps import get_current_user
 from app.schemas.user_answer import AnswerSubmission, AnswerResponse
@@ -149,14 +149,22 @@ def submit_hosted_answers(
     current_user=Depends(get_current_user)
 ):
     """
-    Submit answers for a hosted session as a participant. Each participant has their own QuizSession linked to the hosted session.
-    The QuizSession must already exist (created when joining the hosted session).
+    Submit answers for a hosted session as a participant. Each participant has their own QuizSession or JoinedQuizSession linked to the hosted session.
     """
-    # 1. Get the participant's specific QuizSession
+    # Try to get the participant's QuizSession
     participant_quiz_session = db.query(QuizSession).filter(
         QuizSession.id == submission.quiz_session_id,
         QuizSession.user_id == current_user.id
     ).first()
+
+    is_joined_session = False
+    if not participant_quiz_session:
+        # Try to get the participant's JoinedQuizSession
+        participant_quiz_session = db.query(JoinedQuizSession).filter(
+            JoinedQuizSession.id == submission.quiz_session_id,
+            JoinedQuizSession.user_id == current_user.id
+        ).first()
+        is_joined_session = True if participant_quiz_session else False
 
     if not participant_quiz_session:
         raise HTTPException(status_code=404, detail="Participant's quiz session not found or you are not the owner.")
@@ -164,40 +172,42 @@ def submit_hosted_answers(
     if participant_quiz_session.submitted_at:
         raise HTTPException(status_code=400, detail="Quiz already submitted by this participant")
 
-    # 2. Find the HostedSession this participant is part of.
-    participant_entries = db.query(HostedSessionParticipant).filter(
-        HostedSessionParticipant.user_id == current_user.id
-    ).all()
+    # Find the HostedSession and participant record for this user
+    hosted_session = None
+    participant_record = None
+    if is_joined_session:
+        # For JoinedQuizSession, find the HostedSession via the template quiz
+        # Find all HostedSessionParticipant records for this user
+        participant_entries = db.query(HostedSessionParticipant).filter(
+            HostedSessionParticipant.user_id == current_user.id
+        ).all()
+        for p_entry in participant_entries:
+            hs = db.query(HostedSession).filter(HostedSession.id == p_entry.hosted_session_id).first()
+            if hs:
+                template_quiz = db.query(HostedQuizSession).filter(HostedQuizSession.id == hs.quiz_session_id).first()
+                if (template_quiz and
+                    template_quiz.prompt == participant_quiz_session.prompt and
+                    template_quiz.topic == participant_quiz_session.topic and
+                    template_quiz.difficulty == participant_quiz_session.difficulty and
+                    template_quiz.company == participant_quiz_session.company and
+                    template_quiz.num_questions == participant_quiz_session.num_questions):
+                    hosted_session = hs
+                    participant_record = p_entry
+                    break
+    else:
+        # For QuizSession, find HostedSession by matching quiz_session_id
+        hosted_session = db.query(HostedSession).filter(
+            HostedSession.quiz_session_id == participant_quiz_session.id
+        ).first()
+        if hosted_session:
+            participant_record = db.query(HostedSessionParticipant).filter(
+                HostedSessionParticipant.hosted_session_id == hosted_session.id,
+                HostedSessionParticipant.user_id == current_user.id
+            ).first()
 
-    parent_hosted_session = None
-
-    for p_entry in participant_entries:
-        hs = db.query(HostedSession).filter(HostedSession.id == p_entry.hosted_session_id).first()
-        if hs:
-            template_quiz = db.query(HostedQuizSession).filter(HostedQuizSession.id == hs.quiz_session_id).first()
-            if (template_quiz and
-                template_quiz.prompt == participant_quiz_session.prompt and
-                template_quiz.topic == participant_quiz_session.topic and
-                template_quiz.difficulty == participant_quiz_session.difficulty and
-                template_quiz.company == participant_quiz_session.company and
-                template_quiz.num_questions == participant_quiz_session.num_questions):
-                parent_hosted_session = hs
-                break
-    
-    if not parent_hosted_session:
+    if not hosted_session or not participant_record:
         raise HTTPException(status_code=404, detail="Could not reliably associate this quiz submission with an active hosted session for this participant.")
-    
-    participant_record = db.query(HostedSessionParticipant).filter(
-        HostedSessionParticipant.hosted_session_id == parent_hosted_session.id,
-        HostedSessionParticipant.user_id == current_user.id
-    ).first()
 
-    if not participant_record:
-        raise HTTPException(status_code=403, detail="Participant record not found for the identified hosted session.")
-
-    session = participant_quiz_session
-    hosted_session = parent_hosted_session
-    
     score = 0
     results = []
 
@@ -211,14 +221,24 @@ def submit_hosted_answers(
         if is_correct:
             score += 1
 
-        db_answer = UserAnswer(
-            id=uuid.uuid4(),
-            quiz_session_id=session.id, 
-            question_id=answer.question_id,
-            selected_option=answer.selected_option.upper(),
-            is_correct=is_correct,
-            answered_at=datetime.utcnow()
-        )
+        if is_joined_session:
+            db_answer = JoinedUserAnswer(
+                id=uuid.uuid4(),
+                joined_session_id=participant_quiz_session.id,
+                question_id=answer.question_id,
+                selected_option=answer.selected_option.upper(),
+                is_correct=is_correct,
+                answered_at=datetime.utcnow()
+            )
+        else:
+            db_answer = UserAnswer(
+                id=uuid.uuid4(),
+                quiz_session_id=participant_quiz_session.id,
+                question_id=answer.question_id,
+                selected_option=answer.selected_option.upper(),
+                is_correct=is_correct,
+                answered_at=datetime.utcnow()
+            )
         db.add(db_answer)
 
         results.append({
@@ -229,9 +249,10 @@ def submit_hosted_answers(
             "explanation": question.explanation
         })
 
-    session.score = score 
-    session.submitted_at = datetime.now(timezone.utc)
+    participant_quiz_session.score = score
+    participant_quiz_session.submitted_at = datetime.now(timezone.utc)
 
+    # Update leaderboard entry for this participant
     leaderboard_entry = db.query(HostedSessionLeaderboard).filter(
         HostedSessionLeaderboard.participant_id == participant_record.id, 
         HostedSessionLeaderboard.hosted_session_id == hosted_session.id
@@ -243,57 +264,31 @@ def submit_hosted_answers(
             hosted_session_id=hosted_session.id,
             score=score,
             position=0, 
-            started_at=session.started_at, 
-            submitted_at=session.submitted_at
+            started_at=participant_quiz_session.started_at, 
+            submitted_at=participant_quiz_session.submitted_at
         )
         db.add(leaderboard_entry)
     else:
         leaderboard_entry.score = score
-        leaderboard_entry.submitted_at = session.submitted_at
+        leaderboard_entry.submitted_at = participant_quiz_session.submitted_at
 
+    # Update positions for all participants
     all_entries = db.query(HostedSessionLeaderboard).filter(
         HostedSessionLeaderboard.hosted_session_id == hosted_session.id
     ).order_by(HostedSessionLeaderboard.score.desc(), HostedSessionLeaderboard.submitted_at.asc()).all()
-
     for idx, entry in enumerate(all_entries, 1):
         entry.position = idx
-    
-    all_participant_records_for_this_hs = db.query(HostedSessionParticipant).filter(
-        HostedSessionParticipant.hosted_session_id == hosted_session.id
-    ).all()
 
-    all_submitted = True
-    if not all_participant_records_for_this_hs:
-        all_submitted = False 
-    
-    template_quiz_for_hs = db.query(HostedQuizSession).filter(HostedQuizSession.id == hosted_session.quiz_session_id).first()
-
-    if template_quiz_for_hs: # Check if template_quiz_for_hs is found
-        for p_rec in all_participant_records_for_this_hs:
-            participant_qs = db.query(QuizSession).filter(
-                QuizSession.user_id == p_rec.user_id,
-                QuizSession.prompt == template_quiz_for_hs.prompt,
-                QuizSession.topic == template_quiz_for_hs.topic,
-                QuizSession.difficulty == template_quiz_for_hs.difficulty,
-                QuizSession.company == template_quiz_for_hs.company,
-                QuizSession.num_questions == template_quiz_for_hs.num_questions
-            ).order_by(QuizSession.created_at.desc()).first()
-
-            if not (participant_qs and participant_qs.submitted_at):
-                all_submitted = False
-                break
-    else: # If template_quiz_for_hs is not found, cannot determine if all submitted
-        all_submitted = False
-            
-    if all_submitted and not hosted_session.ended_at:
-        hosted_session.ended_at = datetime.now(timezone.utc)
+    # Check if all participants have submitted
+    if all(entry.submitted_at is not None for entry in all_entries):
+        hosted_session.ended_at = participant_quiz_session.submitted_at
         hosted_session.is_active = False
 
     db.commit()
 
     return {
         "message": "Answers submitted successfully for hosted session",
-        "quiz_session_id": session.id,
+        "quiz_session_id": participant_quiz_session.id,
         "score": score,
         "total_questions": len(submission.answers),
         "results": results

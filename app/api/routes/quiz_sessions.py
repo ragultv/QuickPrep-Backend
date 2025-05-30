@@ -191,6 +191,22 @@ async def join_hosted_session(
         db.flush()
         print(f"New participant {current_user.id} added to hosted_session {hosted_session_id}")
 
+        # Create leaderboard entry for this participant if not exists
+        leaderboard_entry = db.query(HostedSessionLeaderboard).filter(
+            HostedSessionLeaderboard.participant_id == participant_record.id,
+            HostedSessionLeaderboard.hosted_session_id == hosted_session_id
+        ).first()
+        if not leaderboard_entry:
+            leaderboard_entry = HostedSessionLeaderboard(
+                participant_id=participant_record.id,
+                hosted_session_id=hosted_session_id,
+                score=0,
+                position=0,
+                started_at=None,
+                submitted_at=None
+            )
+            db.add(leaderboard_entry)
+
     # Create or ensure JoinedQuizSession for the participant using template_hosted_quiz_session details
     if not participant_specific_quiz_session_id:
         new_participant_quiz_session = JoinedQuizSession(
@@ -248,7 +264,20 @@ async def get_quiz_session(session_id: UUID, db: Session = Depends(get_db), curr
         if not joined_session:
             raise HTTPException(status_code=404, detail="Quiz session not found or you are not the owner")
         
-        # Convert JoinedQuizSession to QuizSessionResponse format
+        # Fetch questions for joined session with all required fields
+        joined_questions = db.query(JoinedQuizSessionQuestion).filter(
+            JoinedQuizSessionQuestion.joined_session_id == joined_session.id
+        ).order_by(JoinedQuizSessionQuestion.question_order).all()
+        questions = [
+            {
+                "id": q.id,
+                "quiz_session_id": q.joined_session_id,  # Map joined_session_id to quiz_session_id for schema compatibility
+                "question_id": q.question_id,
+                "question_order": q.question_order
+            }
+            for q in joined_questions
+        ]
+
         return QuizSessionResponse(
             id=joined_session.id,
             user_id=joined_session.user_id,
@@ -261,10 +290,39 @@ async def get_quiz_session(session_id: UUID, db: Session = Depends(get_db), curr
             created_at=joined_session.created_at,
             started_at=joined_session.started_at,
             submitted_at=joined_session.submitted_at,
-            total_duration=joined_session.total_duration
+            total_duration=joined_session.total_duration,
+            questions=questions
         )
     
-    return session
+    # For regular QuizSession, fetch all required fields
+    quiz_questions = db.query(QuizSessionQuestion).filter(
+        QuizSessionQuestion.quiz_session_id == session.id
+    ).order_by(QuizSessionQuestion.question_order).all()
+    questions = [
+        {
+            "id": q.id,
+            "quiz_session_id": q.quiz_session_id,
+            "question_id": q.question_id,
+            "question_order": q.question_order
+        }
+        for q in quiz_questions
+    ]
+
+    return QuizSessionResponse(
+        id=session.id,
+        user_id=session.user_id,
+        prompt=session.prompt,
+        topic=session.topic,
+        difficulty=session.difficulty,
+        company=session.company,
+        num_questions=session.num_questions,
+        score=session.score,
+        created_at=session.created_at,
+        started_at=session.started_at,
+        submitted_at=session.submitted_at,
+        total_duration=session.total_duration,
+        questions=questions
+    )
 
 @router.get("/{session_id}/details")
 async def get_session_details(session_id: UUID, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -292,6 +350,26 @@ async def get_session_details(session_id: UUID, db: Session = Depends(get_db), c
             HostedSessionLeaderboard.hosted_session_id == hosted_session.id
         ).first()
 
+        # If leaderboard entry is missing, try to create it from the participant's QuizSession
+        if not leaderboard_entry:
+            quiz_session = db.query(QuizSession).filter(
+                QuizSession.user_id == participant_join_record.user_id,
+                QuizSession.prompt == hosted_session.prompt,
+                QuizSession.topic == hosted_session.topic,
+                QuizSession.difficulty == hosted_session.difficulty,
+            ).order_by(QuizSession.created_at.desc()).first()
+            if quiz_session and quiz_session.submitted_at:
+                leaderboard_entry = HostedSessionLeaderboard(
+                    participant_id=participant_join_record.id,
+                    hosted_session_id=hosted_session.id,
+                    score=quiz_session.score,
+                    position=0,
+                    started_at=quiz_session.started_at,
+                    submitted_at=quiz_session.submitted_at
+                )
+                db.add(leaderboard_entry)
+                db.flush()
+
         participant_list.append({
             "id": str(user_record.id),
             "name": user_record.name,
@@ -301,6 +379,8 @@ async def get_session_details(session_id: UUID, db: Session = Depends(get_db), c
             "submitted_at": leaderboard_entry.submitted_at.isoformat() if leaderboard_entry and leaderboard_entry.submitted_at else None,
             "avatar": user_record.avatar_url if hasattr(user_record, 'avatar_url') and user_record.avatar_url else f"https://ui-avatars.com/api/?name={user_record.name.replace(' ', '+')}"
         })
+
+    db.commit()
 
     return {
         "id": str(hosted_session.id),
@@ -318,11 +398,15 @@ async def get_session_details(session_id: UUID, db: Session = Depends(get_db), c
     }
 
 @router.post("/{session_id}/start", response_model=QuizSessionResponse, status_code=status.HTTP_200_OK)
-async def start_quiz_session(
+async def handleStartSession(
     session_id: UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    """
+    Handle starting both regular quiz sessions and joined quiz sessions.
+    Updates the start time in the database and returns the session details.
+    """
     # First check if it's a regular quiz session
     session = db.query(QuizSession).filter(
         QuizSession.id == session_id,
@@ -342,6 +426,24 @@ async def start_quiz_session(
         if session.submitted_at:
             raise HTTPException(status_code=400, detail="Session already submitted")
         
+        if session.started_at:
+            # If session is already started, return current state
+            return QuizSessionResponse(
+                id=session.id,
+                user_id=session.user_id,
+                prompt=session.prompt,
+                topic=session.topic,
+                difficulty=session.difficulty,
+                company=session.company,
+                num_questions=session.num_questions,
+                score=session.score,
+                created_at=session.created_at,
+                started_at=session.started_at,
+                submitted_at=session.submitted_at,
+                total_duration=session.total_duration
+            )
+        
+        # Update start time for joined session
         session.started_at = datetime.utcnow()
         db.commit()
         db.refresh(session)
@@ -362,9 +464,15 @@ async def start_quiz_session(
             total_duration=session.total_duration
         )
     
+    # Handle regular quiz session
     if session.submitted_at:
         raise HTTPException(status_code=400, detail="Session already submitted")
     
+    if session.started_at:
+        # If session is already started, return current state
+        return session
+    
+    # Update start time for regular session
     session.started_at = datetime.utcnow()
     db.commit()
     db.refresh(session)
@@ -408,3 +516,21 @@ async def start_hosted_quiz_session(
         db.refresh(parent_hosted_session)
         
     return {"detail": "Hosted quiz session started successfully", "started_at": hosted_quiz_session.started_at}
+
+@router.post("/user-hosted-quiz-sessions/{user_hosted_quiz_session_id}/start", status_code=status.HTTP_200_OK)
+async def start_user_hosted_quiz_session(
+    user_hosted_quiz_session_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    user_hosted_quiz_session = db.query(JoinedQuizSession).filter(
+        JoinedQuizSession.id == user_hosted_quiz_session_id,
+        JoinedQuizSession.user_id == current_user.id
+    ).first()
+    if not user_hosted_quiz_session:
+        raise HTTPException(status_code=404, detail="User hosted quiz session not found or you are not the owner")
+
+    user_hosted_quiz_session.started_at = datetime.utcnow()
+    db.commit()
+    db.refresh(user_hosted_quiz_session)
+    return {"detail": "User hosted quiz session started successfully", "started_at": user_hosted_quiz_session.started_at}
