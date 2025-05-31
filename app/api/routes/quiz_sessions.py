@@ -11,15 +11,79 @@ from app.schemas.quiz_session import (
     HostedSessionCreate,
     HostedSessionResponse,
     HostedSessionWithQuizResponse,
-    JoinHostedSessionResponse
+    JoinHostedSessionResponse,
+    SessionsByDateResponse
 )
 import uuid
-from datetime import datetime
+from sqlalchemy import func
+from datetime import datetime, date, timedelta
 from app.crud import crud_quiz
 from typing import List, Optional
 
+
+
+
 router = APIRouter(prefix="/quiz-sessions", tags=["Quiz Sessions"])
 
+@router.get("/sessions-by-date", response_model=SessionsByDateResponse)
+async def get_sessions_by_date(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    try:
+        # Get the current year
+        current_year = datetime.now().year
+        start_date = datetime(current_year, 1, 1)
+        end_date = datetime(current_year, 12, 31)
+
+        # Initialize empty dictionary for all dates in the year
+        sessions_by_date = {}
+        current_date = start_date
+        while current_date <= end_date:
+            sessions_by_date[current_date.strftime('%Y-%m-%d')] = 0
+            current_date += timedelta(days=1)  # Use timedelta to properly increment the date
+
+        # Get regular quiz sessions
+        regular_sessions = db.query(
+            func.date(QuizSession.created_at).label('date'),
+            func.count(QuizSession.id).label('count')
+        ).filter(
+            QuizSession.user_id == current_user.id,
+            QuizSession.created_at >= start_date,
+            QuizSession.created_at <= end_date
+        ).group_by(
+            func.date(QuizSession.created_at)
+        ).all()
+
+        # Get joined quiz sessions
+        joined_sessions = db.query(
+            func.date(JoinedQuizSession.created_at).label('date'),
+            func.count(JoinedQuizSession.id).label('count')
+        ).filter(
+            JoinedQuizSession.user_id == current_user.id,
+            JoinedQuizSession.created_at >= start_date,
+            JoinedQuizSession.created_at <= end_date
+        ).group_by(
+            func.date(JoinedQuizSession.created_at)
+        ).all()
+
+        # Add regular sessions
+        for date, count in regular_sessions:
+            date_str = date.strftime('%Y-%m-%d')
+            sessions_by_date[date_str] = count
+
+        # Add joined sessions
+        for date, count in joined_sessions:
+            date_str = date.strftime('%Y-%m-%d')
+            sessions_by_date[date_str] = sessions_by_date.get(date_str, 0) + count
+
+        return SessionsByDateResponse(sessions_by_date=sessions_by_date)
+    except Exception as e:
+        print(f"Error in get_sessions_by_date: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching sessions by date: {str(e)}"
+        )
 
 @router.post("/create", response_model=QuizSessionResponse)
 async def create_quiz_session(
@@ -29,6 +93,20 @@ async def create_quiz_session(
 ):
     session = crud_quiz.create_quiz_session(db, current_user.id, session_data)
     return session
+
+@router.get("/no-of-sessions-today", response_model=int)
+async def get_no_of_sessions_today(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    today = date.today()
+
+    no_of_sessions_today = db.query(QuizSession).filter(
+        QuizSession.user_id == current_user.id,
+        func.date(QuizSession.created_at) == today
+    ).count()
+
+    return no_of_sessions_today
 
 @router.post(
     "/create-hosted",

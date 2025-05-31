@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 from uuid import UUID
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List , Dict
 from app.schemas.quiz_session_question import QuizSessionQuestionResponse
 from app.core.base_config import BaseConfig
 
@@ -34,6 +34,11 @@ class QuizSessionResponse(BaseConfig):
     class Config:
         from_attributes = True
 
+class SessionsByDateResponse(BaseModel):
+    sessions_by_date: Dict[str, int]
+
+    class Config:
+        from_attributes = True
 
 # ----------------------------
 # HOSTED STANDALONE QUIZ SETUP
