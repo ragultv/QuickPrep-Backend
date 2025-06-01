@@ -16,7 +16,7 @@ from datetime import datetime, timedelta
 from app.schemas.prompt import PromptRequest  # Assuming you have a schema for the prompt request
 from fastapi_cache.decorator import cache
 from app.services.prompt_echancer import get_gemini_response  # Assuming you have a function to enhance prompts
-import logger
+
 
 
 
@@ -77,7 +77,7 @@ def enhance_prompt(payload: PromptRequest, db: Session = Depends(get_db)):
         raise he
     except Exception as e:
         # Log unexpected errors
-        logger.error(f"Unexpected error enhancing prompt: {str(e)}")
+        
         raise HTTPException(
             status_code=500,
             detail="Internal server error during prompt enhancement"
