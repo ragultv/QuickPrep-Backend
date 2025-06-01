@@ -18,7 +18,7 @@ import uuid
 from sqlalchemy import func
 from datetime import datetime, date, timedelta
 from app.crud import crud_quiz
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 
 
@@ -84,16 +84,7 @@ async def get_sessions_by_date(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error fetching sessions by date: {str(e)}"
         )
-
-@router.post("/create", response_model=QuizSessionResponse)
-async def create_quiz_session(
-    session_data: QuizSessionCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    session = crud_quiz.create_quiz_session(db, current_user.id, session_data)
-    return session
-
+        
 @router.get("/no-of-sessions-today", response_model=int)
 async def get_no_of_sessions_today(
     db: Session = Depends(get_db),
@@ -107,6 +98,15 @@ async def get_no_of_sessions_today(
     ).count()
 
     return no_of_sessions_today
+
+@router.post("/create", response_model=QuizSessionResponse)
+async def create_quiz_session(
+    session_data: QuizSessionCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    session = crud_quiz.create_quiz_session(db, current_user.id, session_data)
+    return session
 
 @router.post(
     "/create-hosted",
@@ -414,6 +414,11 @@ async def get_session_details(session_id: UUID, db: Session = Depends(get_db), c
     if not host:
         raise HTTPException(status_code=404, detail="Host not found for the session")
 
+    # Get the associated HostedQuizSession to get num_questions
+    hosted_quiz_session = db.query(HostedQuizSession).filter(HostedQuizSession.id == hosted_session.quiz_session_id).first()
+    if not hosted_quiz_session:
+        raise HTTPException(status_code=404, detail="Quiz session not found for the hosted session")
+
     participants_query = (
         db.query(HostedSessionParticipant, User)
         .join(User, HostedSessionParticipant.user_id == User.id)
@@ -473,6 +478,7 @@ async def get_session_details(session_id: UUID, db: Session = Depends(get_db), c
         "participants": participant_list,
         "started_at": hosted_session.started_at.isoformat() if hosted_session.started_at else None,
         "ended_at": hosted_session.ended_at.isoformat() if hosted_session.ended_at else None,
+        "num_questions": hosted_quiz_session.num_questions
     }
 
 @router.post("/{session_id}/start", response_model=QuizSessionResponse, status_code=status.HTTP_200_OK)

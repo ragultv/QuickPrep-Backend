@@ -16,12 +16,41 @@ from datetime import datetime, timedelta
 from app.schemas.prompt import PromptRequest  # Assuming you have a schema for the prompt request
 from fastapi_cache.decorator import cache
 from app.services.prompt_echancer import get_gemini_response  # Assuming you have a function to enhance prompts
-
+import logger
 
 
 
 router = APIRouter()
   # Add if not imported
+@router.get("/check-session-limit")
+async def check_session_limit(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user)
+):
+    """Check if user has reached their daily session limit for general sessions"""
+    user_id = user.id
+    now = datetime.utcnow()
+    start_of_day = datetime(now.year, now.month, now.day)
+    end_of_day = start_of_day + timedelta(days=1)
+    
+    today_session_count = db.query(QuizSession).filter(
+        QuizSession.user_id == user_id,
+        QuizSession.created_at >= start_of_day,
+        QuizSession.created_at < end_of_day,
+        QuizSession.topic != "Resume"
+    ).count()
+    
+    tomorrow = start_of_day + timedelta(days=1)
+    time_until_reset = tomorrow - now
+    
+    return {
+        "limit_reached": today_session_count >= 5,
+        "sessions_remaining": max(0, 5 - today_session_count),
+        "reset_time": tomorrow.isoformat(),
+        "time_until_reset": str(time_until_reset)
+    }
+
+
 
 
 @router.post("/prompt_enhancer")
@@ -48,6 +77,7 @@ def enhance_prompt(payload: PromptRequest, db: Session = Depends(get_db)):
         raise he
     except Exception as e:
         # Log unexpected errors
+        logger.error(f"Unexpected error enhancing prompt: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail="Internal server error during prompt enhancement"
@@ -55,25 +85,6 @@ def enhance_prompt(payload: PromptRequest, db: Session = Depends(get_db)):
 @router.post("/generate/")
 @cache(expire=3600)  # Cache for 1 hour
 def generate_and_save_questions(payload: PromptRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    # user_id = user.id
-
-    # # Define today's start and end (UTC)
-    # now = datetime.utcnow()
-    # start_of_day = datetime(now.year, now.month, now.day)
-    # end_of_day = start_of_day + timedelta(days=1)
-
-    # # Count sessions created by the user today
-    # today_session_count = db.query(QuizSession).filter(
-    #     QuizSession.user_id == user_id,
-    #     QuizSession.started_at >= start_of_day,
-    #     QuizSession.started_at < end_of_day
-    # ).count()
-
-    # if today_session_count >= 5:
-    #     raise HTTPException(
-    #         status_code=429,
-    #         detail="❌ Daily session limit reached. You can create only 5 sessions per day. Try again tomorrow."
-    #     )
     try:
         # Extract exact number from prompt using regex
         match = re.search(r'\b(\d+)\b', payload.prompt)
@@ -171,4 +182,4 @@ def get_questions(question_ids: str, db: Session = Depends(get_db)):
         return transformed_questions
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid question IDs format")
-    
+

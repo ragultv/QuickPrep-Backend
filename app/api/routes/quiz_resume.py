@@ -1,7 +1,7 @@
 from fastapi import APIRouter, UploadFile, File, Depends, HTTPException
 from sqlalchemy.orm import Session
 from uuid import uuid4
-from app.db.models import resume, Question, QuizSession
+from app.db.models import resume, Question, QuizSession,User
 from app.services.quiz_generator_resume import generate_large_quiz
 from app.crud import crud_question, crud_quiz
 from app.db.models import Question
@@ -11,7 +11,7 @@ from app.schemas.quiz_session import QuizSessionCreate
 from pydantic import BaseModel
 from app.db.session import get_db
 from app.api.deps import get_current_user
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 import re
 import fitz  # PDF
@@ -31,6 +31,35 @@ def extract_text(file_path: str) -> str:
         return "\n".join([para.text for para in doc.paragraphs])
     else:
         raise ValueError("Unsupported file type")
+    
+
+@router.get("/check-session-limit")
+async def check_resume_session_limit(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Check if user has reached their daily session limit for resume sessions"""
+    user_id = current_user.id
+    now = datetime.utcnow()
+    start_of_day = datetime(now.year, now.month, now.day)
+    end_of_day = start_of_day + timedelta(days=1)
+    
+    today_session_count = db.query(QuizSession).filter(
+        QuizSession.user_id == user_id,
+        QuizSession.created_at >= start_of_day,
+        QuizSession.created_at < end_of_day,
+        QuizSession.topic == "Resume"
+    ).count()
+    
+    tomorrow = start_of_day + timedelta(days=1)
+    time_until_reset = tomorrow - now
+    
+    return {
+        "limit_reached": today_session_count >= 2,
+        "sessions_remaining": max(0, 2 - today_session_count),
+        "reset_time": tomorrow.isoformat(),
+        "time_until_reset": str(time_until_reset)
+    }
 
 @router.post("/upload-file")
 def upload_resume_file(
@@ -142,5 +171,5 @@ def generate_questions_from_resume_input(
         "new_questions": len(created_questions),
         "existing_questions": len(existing_questions),
         "ids": all_question_ids,
-        "session_id": str(new_session.id),
+        "session_id": str(new_session.id)
     }
