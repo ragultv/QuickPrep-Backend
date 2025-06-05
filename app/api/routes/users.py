@@ -43,7 +43,7 @@ def verify_email(email: str, otp: str) -> bool:
         <html>
         <body style="font-family: Arial, sans-serif; color: #333;">
             <div style="text-align: center; margin-bottom: 20px;">
-                <img src="https://ibb.co/kVQns0rP" alt="QuickPrep Logo" style="width: 150px;"/>
+                <a href="https://imgbb.com/"><img src="https://i.ibb.co/JW5Lw2bS/logo.png" alt="logo" border="0" /></a>
             </div>
             <h2 style="color: #007bff; text-align: center;">Welcome to QuickPrep!</h2>
             <p style="text-align: center;">Use the OTP below to securely log in to your account:</p>
