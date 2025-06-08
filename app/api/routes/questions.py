@@ -3,7 +3,8 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.services.quiz_generator import generate_large_quiz
 from app.crud import crud_question
-from app.db.models import Question,QuizSession,User
+from app.db.models import Question,QuizSession,User,HostedSession
+from app.api.deps import get_current_user
 from pydantic import BaseModel
 from app.api.deps import get_current_user
 from typing import List
@@ -50,7 +51,30 @@ async def check_session_limit(
         "time_until_reset": str(time_until_reset)
     }
 
+@router.get("/check-hostedsession-limit")
+async def check_host_limit(db:Session=Depends(get_db),user:User=Depends(get_current_user)):
 
+    user_id = user.id
+    now = datetime.utcnow()
+    start_of_day = datetime(now.year, now.month, now.day)
+    end_of_day = start_of_day + timedelta(days=1)
+    
+    today_session_count = db.query(HostedSession).filter(
+        HostedSession.host_id == user_id,
+        HostedSession.created_at >= start_of_day,
+        HostedSession.created_at < end_of_day,
+        
+    ).count()
+    
+    tomorrow = start_of_day + timedelta(days=1)
+    time_until_reset = tomorrow - now
+    
+    return {
+        "limit_reached": today_session_count >= 2,
+        "sessions_remaining": max(0, 2 - today_session_count),
+        "reset_time": tomorrow.isoformat(),
+        "time_until_reset": str(time_until_reset)
+    }
 
 
 @router.post("/prompt_enhancer")
@@ -91,7 +115,7 @@ def generate_and_save_questions(payload: PromptRequest, db: Session = Depends(ge
         total_questions = int(match.group(1)) if match else 30
         
         # Enforce minimum/maximum bounds
-        total_questions = max(5, min(total_questions, 10000))
+        total_questions = min(25, min(total_questions, 10000))
         
         # Dynamic batch sizing
         batch_size = min(20, total_questions)  # Never exceed requested total

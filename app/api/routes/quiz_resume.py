@@ -119,7 +119,7 @@ def generate_questions_from_resume_input(
         total_questions = int(match.group(1)) if match else 30
         
         # Enforce minimum/maximum bounds
-        total_questions = max(5, min(total_questions, 10000))
+        total_questions = min(25, min(total_questions, 10000))
         
         # Dynamic batch sizing
         batch_size = min(20, total_questions)  # Never exceed requested total
